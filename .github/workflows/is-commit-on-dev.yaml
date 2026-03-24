@@ -1,0 +1,39 @@
+name: Commit is on Dev Check
+
+on:
+  # 1. Run on pushes to dev to "stamp" the commit SHA with a passing status
+  push:
+    branches: ["dev"]
+  # 2. Run on PRs to main to evaluate incoming commits
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  commit-is-on-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # We need the full history to check ancestry
+
+      - name: Verify Ancestry
+        run: |
+          # If triggered by a push to dev, it inherently belongs to dev. Pass immediately.
+          if [ "${{ github.event_name }}" == "push" ]; then
+            echo "Commit pushed to dev. Passing automatically!"
+            exit 0
+          fi
+
+          # If triggered by a PR, fetch the latest dev branch to compare against
+          git fetch origin dev
+
+          # Check if the PR's head commit is an ancestor of the dev branch
+          if git merge-base --is-ancestor ${{ github.event.pull_request.head.sha }} origin/dev; then
+            echo "✅ Success: This commit exists on the dev branch."
+            exit 0
+          else
+            echo "❌ ERROR: This commit is NOT on the dev branch."
+            echo "Pull requests to 'main' must only contain commits that have already been merged into 'dev'."
+            exit 1
+          fi
